@@ -4,68 +4,71 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 
 # CẤU HÌNH ĐƯỜNG DẪN
-RAW_LOG_PATH = "xdp_project/data/traffic_log.csv"
+RAW_LOG_PATH = "../xdp_project/data/traffic_log.csv"
 OUTPUT_TRAIN = "train_data.csv"
 OUTPUT_TEST = "test_data.csv"
 
 def load_and_process_data(filepath):
-    print(f"[*] Đang đọc dữ liệu từ {filepath}...")
+    print(f"Dang doc du lieu tu {filepath}...")
     try:
         df = pd.read_csv(filepath)
     except FileNotFoundError:
-        print("❌ Lỗi: Không tìm thấy file log. Hãy chạy collector.py trước!")
+        print("Loi: Khong tim thay file log. Hay chay collector.py truoc!")
         return None
 
-    # 1. Chuyển timestamp từ nanoseconds sang datetime
-    df['datetime'] = pd.to_datetime(df['timestamp_ns'], unit='ns')
+    # --- ĐOẠN CODE MỚI THÊM ĐỂ FIX LỖI ---
+    # 1. Xóa khoảng trắng thừa ở tên cột (VD: " timestamp" -> "timestamp")
+    df.columns = df.columns.str.strip()
+    
+    # 2. In ra các cột đang có để kiểm tra
+    print(f"🔍 Cac cot tim thay trong file CSV: {df.columns.tolist()}")
+
+    # 3. Tự động đổi tên cột về chuẩn 'timestamp_ns'
+    # Nếu cột tên là 'ts' hoặc 'timestamp' -> đổi thành 'timestamp_ns'
+    if 'ts' in df.columns:
+        print("⚠️ Phat hien cot 'ts', dang doi ten thanh 'timestamp_ns'...")
+        df.rename(columns={'ts': 'timestamp_ns'}, inplace=True)
+    elif 'timestamp' in df.columns:
+        print("⚠️ Phat hien cot 'timestamp', dang doi ten thanh 'timestamp_ns'...")
+        df.rename(columns={'timestamp': 'timestamp_ns'}, inplace=True)
+        
+    # Kiểm tra lần cuối
+    if 'timestamp_ns' not in df.columns:
+        print("❌ LOI NGHIEM TRONG: Khong tim thay cot thoi gian!")
+        print("Hay xoa file traffic_log.csv va chay lai collector.py")
+        return None
+    # -------------------------------------
+
+    # 4. Chuyen timestamp tu nanoseconds sang datetime
+    try:
+        df['datetime'] = pd.to_datetime(df['timestamp_ns'], unit='ns')
+    except Exception as e:
+        # Fallback: Nếu unit='ns' lỗi (do số quá nhỏ), thử unit='s'
+        print("⚠️ Timestamp co the dang o dang giay (seconds), dang thu convert lai...")
+        df['datetime'] = pd.to_datetime(df['timestamp_ns'], unit='s')
+        
     df = df.set_index('datetime')
 
-    print("[*] Đang trích xuất đặc trưng (Feature Engineering)...")
+    print("Dang trich xuat dac trung (Feature Engineering)...")
     
-    # 2. Gom nhóm theo từng giây (1 Second Window)
-    # Đây là bước biến Raw Data -> Flow Data
+    # ... (Phần còn lại giữ nguyên) ...
+    # Gom nhom theo tung giay (1 Second Window)
     df_resampled = df.resample('1S').agg({
-        'length': ['count', 'sum', 'mean'],     # PPS, BPS, Avg Len
-        'tcp_flags_raw': lambda x: (x == 2).sum(), # Đếm số lượng gói SYN (Flag=2)
-        'dst_port': 'nunique'                   # Đếm số port đích khác nhau
+        'length': ['count', 'sum', 'mean'],     
+        'tcp_flags_raw': lambda x: (x == 2).sum(), 
+        'dst_port': 'nunique'                   
     })
 
-    # Làm phẳng MultiIndex columns
+    # Lam phang MultiIndex columns
     df_resampled.columns = ['pps', 'bps', 'avg_len', 'syn_count', 'unique_dst_ports']
     
-    # Loại bỏ các giây không có traffic
+    # Loai bo cac giay khong co traffic
     df_resampled = df_resampled[df_resampled['pps'] > 0].copy()
 
-    # 3. Tạo thêm Feature phái sinh
-    # Tỷ lệ SYN (SYN Rate): Nếu gần 1.0 -> Khả năng cao là SYN Flood
+    # Tao them Feature phai sinh
     df_resampled['syn_rate'] = df_resampled['syn_count'] / df_resampled['pps']
 
     return df_resampled
-
-def auto_label_data(df):
-    """
-    Hàm giả lập gán nhãn (Labeling) để Train Model.
-    Trong thực tế, bạn cần tấn công thật để có nhãn chính xác.
-    """
-    print("[*] Đang tự động gán nhãn (Heuristic Labeling)...")
-    
-    # Rule giả định:
-    # - Nếu PPS > 1000 -> DDoS Volumetric
-    # - Nếu SYN Rate > 0.9 và PPS > 100 -> SYN Flood
-    # - Nếu Unique Ports > 50 -> Port Scan
-    
-    conditions = [
-        (df['pps'] > 1000) | 
-        ((df['syn_rate'] > 0.9) & (df['pps'] > 100)) |
-        (df['unique_dst_ports'] > 50)
-    ]
-    
-    # 1 = Attack, 0 = Normal
-    df['label'] = np.select(conditions, [1], default=0)
-    
-    print(f"   + Số mẫu bình thường: {len(df[df['label']==0])}")
-    print(f"   + Số mẫu tấn công: {len(df[df['label']==1])}")
-    return df
 
 if __name__ == "__main__":
     # Chạy quy trình
