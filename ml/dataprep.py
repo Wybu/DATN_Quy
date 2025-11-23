@@ -28,7 +28,6 @@ def load_and_process_data(filepath):
     # Neu ten cot dau tien la mot con so (vd: 174602...), tuc la mat header
     first_col_name = str(df.columns[0])
     if first_col_name.isdigit():
-        print("⚠️ File CSV thieu Header! Dang gan ten cot thu cong...")
         # Doc lai file, bo qua header, va ep ten cot vao
         # Luu y: File cua ban hien tai co 9 cot (thieu cot label), nen ta chi lay 9 ten dau tien
         current_cols = expected_cols[:len(df.columns)] 
@@ -44,14 +43,13 @@ def load_and_process_data(filepath):
         }
         df.rename(columns=rename_map, inplace=True)
 
-    print(f"🔍 Cac cot cuoi cung: {df.columns.tolist()}")
 
     # 3. XU LY LABEL
     if 'label' in df.columns:
-        print("⚠️ Phat hien cot Label co san. Dang chuan hoa...")
+        print("Phat hien cot Label co san.")
         df['label_is_attack'] = df['label'].apply(lambda x: 0 if str(x).strip().upper() == 'NORMAL' else 1)
     else:
-        print("ℹ️ Khong co cot Label -> Dung Auto-labeling.")
+        print("Dung Auto-labeling.")
         df['label_is_attack'] = 0
 
     # 4. XU LY THOI GIAN
@@ -62,7 +60,7 @@ def load_and_process_data(filepath):
     
     df = df.set_index('datetime')
 
-    print("Dang trich xuat dac trung (Feature Engineering)...")
+    print("Dang trich xuat dac trung...")
     
     # 5. GOM NHOM (RESAMPLE)
     # Chi gom nhom cac cot thuc su ton tai
@@ -105,9 +103,9 @@ if __name__ == "__main__":
     df_features = load_and_process_data(RAW_LOG_PATH)
     
     if df_features is not None:
-        print(f"📊 So luong mau sau khi xu ly: {len(df_features)}")
+        print(f"So luong mau sau khi xu ly: {len(df_features)}")
         
-        # Auto-label neu chua co label (phong truong hop file log thieu label)
+        # Auto-label neu chua co label 
         if 'label' not in df_features.columns:
             conditions = [
                 (df_features['pps'] > 1000) | 
