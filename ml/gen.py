@@ -2,69 +2,78 @@ import csv
 import time
 import random
 
-# CẤU HÌNH ĐƯỜNG DẪN (Trỏ đúng vào file data của bạn)
-OUTPUT_FILE = "/home/quyna/Desktop/DATN_Quy/xdp_project/data/traffic_log.csv"
+# DUONG DAN FILE
+OUTPUT_FILE = "/home/quyna/Downloads/DATN_Quy/xdp_project/data/traffic_log.csv"
 
-# Cấu hình giả lập
-NORMAL_DURATION = 30  # Giả lập 30 giây bình thường
-ATTACK_DURATION = 30  # Giả lập 30 giây tấn công
-START_TIME_NS = int(time.time() * 1e9) # Thời gian bắt đầu (nanosecond)
+START_TIME_NS = int(time.time() * 1e9)
+DURATION_PER_PHASE = 50 # 50 giay cho moi loai
 
-def generate_row(timestamp, is_attack=False):
-    """Hàm tạo ra 1 dòng log giả"""
+def generate_row(timestamp, mode="NORMAL"):
     src_ip = f"{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}.{random.randint(1,255)}"
-    dst_ip = "192.168.5.134" # IP máy nạn nhân
+    dst_ip = "192.168.5.134"
     src_port = random.randint(1024, 65535)
     
-    if not is_attack:
-        # --- TRAFFIC BÌNH THƯỜNG ---
+    if mode == "NORMAL":
         dst_port = random.choice([80, 443, 53, 22])
-        protocol = 6 # TCP
-        # Normal traffic thường là ACK (16) hoặc PSH|ACK (24)
-        flags = random.choice([16, 24, 18]) 
-        flag_desc = "ACK" if flags==16 else "PSH|ACK"
-        length = random.randint(64, 1500) # Kích thước ngẫu nhiên
-        label = "NORMAL"
-    else:
-        # --- TRAFFIC TẤN CÔNG (SYN FLOOD) ---
-        dst_port = 80 # Tấn công tập trung vào 1 cổng
         protocol = 6
-        flags = 2 # Chỉ có SYN
+        flags = random.choice([16, 24, 18]) # ACK, PSH-ACK...
+        flag_desc = "ACK"
+        length = random.randint(64, 1500)
+        label = "NORMAL"
+        
+    elif mode == "HEAVY_NORMAL": # Nguoi dung xem Youtube 4K (Normal nhung PPS cao)
+        dst_port = 443
+        protocol = 6
+        flags = 16 # ACK
+        flag_desc = "ACK"
+        length = 1400 # Goi tin to
+        label = "NORMAL"
+
+    elif mode == "LOW_ATTACK": # Tan cong cham (Attack nhung PPS thap)
+        dst_port = 80
+        protocol = 6
+        flags = 2 # SYN
         flag_desc = "SYN"
-        length = 64 # Gói tin nhỏ để spam nhanh
-        label = "SYN_FLOOD_ATTACK"
+        length = 64
+        label = "ATTACK"
         
     return [timestamp, src_ip, dst_ip, src_port, dst_port, protocol, length, flags, flag_desc, label]
 
-print(f"🚀 Đang tạo dữ liệu giả tại: {OUTPUT_FILE}")
+print(f"🚀 Dang tao du lieu 'Hard Mode' tai: {OUTPUT_FILE}")
 
 with open(OUTPUT_FILE, "w", newline="") as f:
     writer = csv.writer(f)
-    # Ghi Header chuẩn
     writer.writerow(['timestamp_ns', 'src_ip', 'dst_ip', 'src_port', 'dst_port', 
                      'protocol', 'length', 'tcp_flags_raw', 'tcp_flags_desc', 'label'])
 
     current_time = START_TIME_NS
 
-    # 1. GIAI ĐOẠN BÌNH THƯỜNG (30s)
-    print("... Đang tạo 30s traffic bình thường (Normal)...")
-    for _ in range(NORMAL_DURATION):
-        # Mỗi giây chỉ có khoảng 10-50 gói tin (Traffic thấp)
-        packets_per_sec = random.randint(10, 50)
-        for _ in range(packets_per_sec):
-            row = generate_row(current_time, is_attack=False)
-            writer.writerow(row)
-        current_time += 1_000_000_000 # Tăng 1 giây
+    # 1. NORMAL THUONG (PPS: 10-50)
+    print("... Phase 1: Normal (Low traffic)...")
+    for _ in range(DURATION_PER_PHASE):
+        for _ in range(random.randint(10, 50)):
+            writer.writerow(generate_row(current_time, "NORMAL"))
+        current_time += 1_000_000_000
 
-    # 2. GIAI ĐOẠN TẤN CÔNG (30s)
-    print("... Đang tạo 30s traffic tấn công (DDoS SYN Flood)...")
-    for _ in range(ATTACK_DURATION):
-        # Mỗi giây có 2000-3000 gói tin (Traffic cực cao -> DDoS)
-        packets_per_sec = random.randint(2000, 3000)
-        for _ in range(packets_per_sec):
-            row = generate_row(current_time, is_attack=True)
-            writer.writerow(row)
-        current_time += 1_000_000_000 # Tăng 1 giây
+    # 2. HEAVY NORMAL (PPS: 300-500) -> Gay nhieu cho Model
+    print("... Phase 2: Heavy Normal (High traffic - Video Streaming)...")
+    for _ in range(DURATION_PER_PHASE):
+        for _ in range(random.randint(300, 500)):
+            writer.writerow(generate_row(current_time, "HEAVY_NORMAL"))
+        current_time += 1_000_000_000
 
-print("✅ Đã xong! File log bây giờ đã có cả Normal và Attack.")
-print("👉 Hãy chạy lại dataprep.py và model.py ngay!")
+    # 3. LOW RATE ATTACK (PPS: 200-400) -> Lan lon voi Heavy Normal
+    print("... Phase 3: Low Rate Attack (Stealthy DDoS)...")
+    for _ in range(DURATION_PER_PHASE):
+        for _ in range(random.randint(200, 400)):
+            writer.writerow(generate_row(current_time, "LOW_ATTACK"))
+        current_time += 1_000_000_000
+    
+    # 4. FLOOD ATTACK (PPS: 2000) -> De phat hien
+    print("... Phase 4: Standard Flood Attack...")
+    for _ in range(DURATION_PER_PHASE):
+        for _ in range(random.randint(2000, 2500)):
+            writer.writerow(generate_row(current_time, "LOW_ATTACK")) # Reuse ham nhung tang so luong vong lap
+        current_time += 1_000_000_000
+
+print("✅ Xong! Du lieu nay se lam Accuracy giam xuong.")
