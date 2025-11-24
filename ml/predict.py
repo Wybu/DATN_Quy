@@ -6,7 +6,7 @@ import sys
 from collections import Counter
 
 # --- CAU HINH ---
-LOG_FILE = "/home/quyna/Desktop/DATN_Quy/xdp_project/data/traffic_log.csv"
+LOG_FILE = "/home/minhbui/DATN_Quy/xdp_project/data/traffic_log.csv"
 MODEL_FILE = "rf_model.pkl"
 
 FEATURE_COLS = ['pps', 'bps', 'avg_len', 'syn_count', 'unique_dst_ports', 'syn_rate']
@@ -50,7 +50,7 @@ def extract_features(window_packets):
 
 def analyze_attacker(window_packets):
     """
-    Khi AI bao tan cong, ham nay se quet lai log de tim IP thu pham.
+    quet lai log de tim IP thu pham.
     """
     src_ips = []
     syn_ips = []

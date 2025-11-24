@@ -4,7 +4,7 @@ from sklearn.model_selection import train_test_split
 import os
 
 # CAU HINH DUONG DAN (Dung duong dan tuyet doi)
-RAW_LOG_PATH = "/home/quyna/Desktop/DATN_Quy/xdp_project/data/traffic_log.csv"
+RAW_LOG_PATH = "/home/minhbui/DATN_Quy/xdp_project/data/traffic_log1.csv"
 OUTPUT_TRAIN = "train_data.csv"
 OUTPUT_TEST = "test_data.csv"
 
