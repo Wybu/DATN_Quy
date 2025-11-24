@@ -60,7 +60,8 @@ except Exception:
 print(f"[+] Successfully attached in {mode} mode.")
 
 # file csv
-header = ["timestamp_ns", "src_ip", "dst_ip", "src_port", "dst_port", "protocol", "length", "tcp_flags_raw", "tcp_flags_desc"]
+header = ["timestamp_ns", "src_ip", "dst_ip", "src_port", "dst_port", 
+          "protocol", "length", "tcp_flags_raw", "tcp_flags_desc", "label"]
 file_exists = os.path.isfile(OUTPUT_FILE)
 
 # mo log file
@@ -93,7 +94,8 @@ def handle_event(cpu, data, size):
     flags_desc = get_tcp_flags_str(flags)
 
     # 2. csv writer
-    writer.writerow([ts, s_ip, d_ip, s_port, d_port, proto, length, flags, flags_desc])
+
+    writer.writerow([ts, s_ip, d_ip, s_port, d_port, proto, length, flags, flags_desc, "NORMAL"])
     
     # 3. console log
     print(f"[{ts}] {s_ip}:{s_port} -> {d_ip}:{d_port} | Len:{length} | Flags:[{flags_desc}]")
