@@ -13,9 +13,7 @@ struct bpf_wq {
 #include <linux/tcp.h>
 #include <linux/udp.h>
 
-/* * DEFINITION: Cau truc du lieu gui len User Space (Feature Vector)
- * Cau truc nay phai khop (aligned) voi cau truc ben Python
- */
+// Dinh nghia cau truc du lieu gui ve user space
 struct packet_data_t {
     u32 src_ip;
     u32 dst_ip;
@@ -23,7 +21,7 @@ struct packet_data_t {
     u16 dst_port;
     u32 len;            // Feature: Kich thuoc goi
     u8  proto;          // Feature: Giao thuc (6=TCP, 17=UDP)
-    u8  tcp_flags;      // Feature: Cac co TCP (SYN, ACK, FIN...) - Quan trong nhat cho ML
+    u8  tcp_flags;      // Feature: Cac co TCP SYN, ACK, FIN...
     u64 timestamp;      // Feature: Thoi gian (nanoseconds)
 };
 
@@ -65,8 +63,8 @@ int xdp_prog(struct xdp_md *ctx) {
             pkt.dst_port = bpf_ntohs(tcp->dest);
             
             // KY THUAT QUAN TRONG: Lay TCP Flags
-            // TCP Flags nam o offset 13 (byte thu 13) cua TCP Header
-            // Ep kieu ve u8* de lay chinh xac 8 bit co
+            // TCP Flags nam o offset 13 cua TCP Header
+            // Ep kieu ve u8* de lay chinh xac 8 bit
             u8 *flags_ptr = ((u8 *)tcp) + 13; 
             pkt.tcp_flags = *flags_ptr;
         }
@@ -79,7 +77,6 @@ int xdp_prog(struct xdp_md *ctx) {
             pkt.tcp_flags = 0; // UDP khong co co
         }
     }
-    // (Optional) Co the mo rong ICMP tai day
 
     // 4. Submit du lieu len User Space
     events.perf_submit(ctx, &pkt, sizeof(pkt));

@@ -32,7 +32,7 @@ def get_tcp_flags_str(flags):
     return "|".join(res) if res else "."
 
 # --- KHOI TAO EBPF ---
-print(f"[*] Dang bien dich chuong trinh eBPF tu {SRC_FILE}...")
+print(f"[*] Dang compile chuong trinh eBPF tu {SRC_FILE}...")
 try:
     b = BPF(src_file=SRC_FILE)
     fn = b.load_func("xdp_prog", BPF.XDP)
@@ -76,7 +76,7 @@ if not file_exists:
     writer.writerow(header)
     print(f"[*] Tao file moi: {OUTPUT_FILE}")
 else:
-    print(f"[*] Ghi noi tiep vao file cu: {OUTPUT_FILE}")
+    print(f"[*] Ghi vao file: {OUTPUT_FILE}")
 
 packet_count = 0
 
@@ -103,12 +103,11 @@ def handle_event(cpu, data, size):
 
     writer.writerow([ts, s_ip, d_ip, s_port, d_port, proto, length, flags, flags_desc, "NORMAL"])
     # print(f"[{ts}] {s_ip}:{s_port} -> {d_ip}:{d_port} | Len:{length} | Flags:[{flags_desc}]")
-    # Flush thu cong de predict.py doc duoc ngay (Du da co buffering=1)
     f.flush()
 
 b["events"].open_perf_buffer(handle_event)
 
-print(f"[*] Collector dang chay... (Ghi vao 1 file duy nhat, Sample 1/{SAMPLE_RATE})")
+print(f"[*] Collector dang chay...  Sample 1/{SAMPLE_RATE}")
 print("Nhan Ctrl+C de dung.")
 
 try:
@@ -122,4 +121,4 @@ finally:
     except:
         b.remove_xdp(INTERFACE, 0)
     if f: f.close()
-    print("[+] Xong.")
+    print("[+] DONE!")

@@ -48,7 +48,7 @@ def train_random_forest():
     print("\nClassification Report:")
     print(classification_report(y_test, y_pred))
 
-    # 4. PHAN TICH DAC TRUNG QUAN TRONG (Feature Importance)
+    # 4. PHAN TICH DAC TRUNG QUAN TRONG
     print("\n--- DAC TRUNG QUAN TRONG ---")
     importances = rf_model.feature_importances_
     feature_names = X_train.columns
