@@ -48,38 +48,98 @@ def extract_features(window_packets):
                       columns=FEATURE_COLS)
     return df
 
-def analyze_attacker(window_packets):
+def analyze_attacker(window_packets, features_df):
     """
-    quet lai log de tim IP thu pham.
+    PHAN LOAI TAN CONG LAYER 3 & 4 CHUYEN SAU
     """
     src_ips = []
-    syn_ips = []
+    dst_ports = set()
     
+    # Counter cho cac giao thuc
+    proto_counts = {1: 0, 6: 0, 17: 0} # 1:ICMP, 6:TCP, 17:UDP
+    
+    # Counter cho TCP Flags
+    flag_counts = {'SYN': 0, 'ACK': 0, 'RST': 0, 'FIN': 0, 'OTHER': 0}
+    
+    total_packets = len(window_packets)
+    if total_packets == 0: return "Unknown"
+
     for pkt in window_packets:
         try:
             parts = pkt.strip().split(',')
+            # Format: ts, src, dst, sport, dport, proto, len, flags, ...
             src_ip = parts[1]
+            dst_port = parts[4]
+            proto = int(parts[5])
             flags = int(parts[7])
             
             src_ips.append(src_ip)
-            if flags == 2: # SYN
-                syn_ips.append(src_ip)
+            dst_ports.add(dst_port)
+            
+            # Dem Protocol
+            if proto in proto_counts:
+                proto_counts[proto] += 1
+            
+            # Dem TCP Flags (Chi xet neu la TCP)
+            if proto == 6:
+                if flags == 2: flag_counts['SYN'] += 1
+                elif flags == 16: flag_counts['ACK'] += 1
+                elif flags & 4: flag_counts['RST'] += 1 # RST (4)
+                elif flags & 1: flag_counts['FIN'] += 1 # FIN (1)
+                else: flag_counts['OTHER'] += 1
+                
         except: continue
     
-    if not src_ips: return "Khong xac dinh"
+    # --- 1. TIM THU PHAM (IP) ---
+    from collections import Counter
+    if src_ips:
+        top_ip, count = Counter(src_ips).most_common(1)[0]
+        # Neu IP nay chiem > 90% traffic -> DDoS don le
+        # Neu khong -> DDoS Botnet (Nhieu IP)
+        attacker_label = top_ip
+        if count < total_packets * 0.5:
+            attacker_label = "Botnet/Spoofed IPs"
+    else:
+        attacker_label = "Unknown"
 
-    # 1. Tim IP gui nhieu goi nhat (Top Talker)
-    top_ip, count = Counter(src_ips).most_common(1)[0]
+    # --- 2. PHAN LOAI TAN CONG (DECISION TREE LOGIC) ---
+    attack_type = "Unknown Anomaly"
     
-    # 2. Tim IP gui nhieu SYN nhat (Neu co)
-    reason = "Flood Volume"
-    if syn_ips:
-        top_syn_ip, syn_c = Counter(syn_ips).most_common(1)[0]
-        if syn_c > count * 0.5: # Neu SYN chiem qua ban
-            top_ip = top_syn_ip
-            reason = "SYN Flood"
-            
-    return f"{top_ip} ({reason})"
+    # Ty le phan tram
+    icmp_rate = proto_counts[1] / total_packets
+    udp_rate = proto_counts[17] / total_packets
+    tcp_rate = proto_counts[6] / total_packets
+    unique_ports = len(dst_ports)
+
+    # --- LAYER 3 ATTACKS ---
+    if icmp_rate > 0.5:
+        attack_type = "L3: ICMP Flood"
+    
+    # --- LAYER 4 ATTACKS ---
+    elif udp_rate > 0.5:
+        attack_type = "L4: UDP Volumetric Flood"
+        
+    elif unique_ports > 8:
+        # Quet cong thuong dung TCP hoac UDP, nhung dac diem chinh la nhieu cong
+        attack_type = "L4: Port Scanning"
+        
+    elif tcp_rate > 0.5:
+        # Di sau vao TCP Flags
+        syn_r = flag_counts['SYN'] / proto_counts[6]
+        ack_r = flag_counts['ACK'] / proto_counts[6]
+        rst_r = flag_counts['RST'] / proto_counts[6]
+        fin_r = flag_counts['FIN'] / proto_counts[6]
+        
+        if syn_r > 0.5:
+            attack_type = "L4: TCP SYN Flood"
+        elif ack_r > 0.5:
+            attack_type = "L4: TCP ACK Flood"
+        elif rst_r > 0.5 or fin_r > 0.5:
+            attack_type = "L4: TCP RST/FIN Flood"
+        else:
+            attack_type = "L4: TCP Malformed Flood"
+
+    return f"{attacker_label} -> {attack_type}"
 
 def main():
     model = load_model()
@@ -91,6 +151,7 @@ def main():
     logfile = open(LOG_FILE, "r")
     current_window = []
     last_second = None
+    BATCH_LIMIT = 1000 #doc duoc 1000 goi la phai in ra ngay, giup giam sat muot hon
 
     for line in follow(logfile):
         try:
@@ -102,32 +163,43 @@ def main():
             
             if last_second is None: last_second = current_second
 
-            if current_second == last_second:
-                current_window.append(line)
-            else:
+            is_new_second = (current_second != last_second)
+            is_buffer_full = (len(current_window) >= BATCH_LIMIT)
+
+            if is_new_second or is_buffer_full:
                 if current_window:
+                    # 1. Trich xuat feature
                     feats = extract_features(current_window)
+                    
                     if feats is not None:
-                        # DU DOAN
+                        # 2. Du doan
                         pred = model.predict(feats)[0]
                         
+                        # Hien thi
                         pps = feats['pps'][0]
                         syn_rate = feats['syn_rate'][0]
                         
+                        # Neu buffer day thi danh dau (*) ben canh PPS de biet day la so lieu 1 phan
+                        note = "*" if is_buffer_full else "" 
+                        
                         if pred == 1:
-                            # --- NEU LA TAN CONG -> GOI CONAN DIEU TRA NGAY ---
-                            culprit = analyze_attacker(current_window)
+                            culprit = analyze_attacker(current_window, feats)
                             status = "!!! TAN CONG !!!"
-                            # In mau do
-                            print(f"\033[91m{last_second} | {pps:<5} | {syn_rate:.2f} | {status:<15} | {culprit}\033[0m")
+                            print(f"\033[91m{last_second} | {pps:<5.0f}{note} | {syn_rate:.2f} | {status:<15} | {culprit}\033[0m")
                         else:
                             # In binh thuong
-                            print(f"{last_second} | {pps:<5} | {syn_rate:.2f} | {'Binh Thuong':<15} | -")
+                            print(f"{last_second} | {pps:<5.0f}{note} | {syn_rate:.2f} | {'Binh Thuong':<15} | -")
 
-                current_window = [line]
-                last_second = current_second
+                # Reset buffer
+                current_window = []
+                
+                # Chi cap nhat thoi gian neu thuc su da sang giay moi
+                if is_new_second:
+                    last_second = current_second
+            
+            # Them dong hien tai vao buffer
+            current_window.append(line)
 
         except Exception: continue
-
 if __name__ == "__main__":
     main()
