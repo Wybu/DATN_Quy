@@ -8,7 +8,7 @@ import os
 from bcc import BPF
 
 # config
-INTERFACE = "ens33"  
+INTERFACE = "enp6s18"  
 OUTPUT_FILE = "data/traffic_log.csv"
 SRC_FILE = "src/monitor.c"
 
