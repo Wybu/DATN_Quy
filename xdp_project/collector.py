@@ -102,12 +102,12 @@ def handle_event(cpu, data, size):
     flags_desc = get_tcp_flags_str(flags)
 
     writer.writerow([ts, s_ip, d_ip, s_port, d_port, proto, length, flags, flags_desc, "NORMAL"])
-    # print(f"[{ts}] {s_ip}:{s_port} -> {d_ip}:{d_port} | Len:{length} | Flags:[{flags_desc}]")
+    print(f"[{ts}] {s_ip}:{s_port} -> {d_ip}:{d_port} | Len:{length} | Flags:[{flags_desc}]")
     f.flush()
 
 b["events"].open_perf_buffer(handle_event)
 
-print(f"[*] Collector dang chay...  Sample 1/{SAMPLE_RATE}")
+print(f"[*] Collector dang chay...  ")
 print("Nhan Ctrl+C de dung.")
 
 try:

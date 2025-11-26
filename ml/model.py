@@ -4,7 +4,7 @@ import numpy as np
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
-# --- CAU HINH ---
+# CAU HINH
 TRAIN_DATA = "train_data.csv"
 TEST_DATA = "test_data.csv"
 MODEL_FILE = "rf_model.pkl"
@@ -12,7 +12,6 @@ MODEL_FILE = "rf_model.pkl"
 def train_random_forest():
     print("Bat dau huan luyen Random Forest...")
     
-    # 1. Load du lieu
     try:
         train_df = pd.read_csv(TRAIN_DATA)
         test_df = pd.read_csv(TEST_DATA)
@@ -31,8 +30,6 @@ def train_random_forest():
     print(f"Du lieu test:  {X_test.shape}")
 
     # 2. Khoi tao va Train mo hinh
-    # n_estimators=100: Tao ra 100 cay quyet dinh
-    # n_jobs=-1: Dung tat ca nhan CPU
     print("Dang training...")
     rf_model = RandomForestClassifier(n_estimators=100, random_state=42, n_jobs=-1)
     rf_model.fit(X_train, y_train)
@@ -53,7 +50,6 @@ def train_random_forest():
     importances = rf_model.feature_importances_
     feature_names = X_train.columns
     
-    # Sap xep theo do quan trong giam dan
     indices = np.argsort(importances)[::-1]
 
     for i in range(X_train.shape[1]):
