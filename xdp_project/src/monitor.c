@@ -55,16 +55,12 @@ int xdp_prog(struct xdp_md *ctx) {
     pkt.proto  = ip->protocol;
     pkt.len    = bpf_ntohs(ip->tot_len); // Do dai goi tin IP
 
-    // 3. Parse Layer 4 (Transport)
+    // 3. Parse Layer 4 
     if (pkt.proto == IPPROTO_TCP) {
         struct tcphdr *tcp = (void*)ip + sizeof(*ip);
         if ((void*)tcp + sizeof(*tcp) <= data_end) {
             pkt.src_port = bpf_ntohs(tcp->source);
             pkt.dst_port = bpf_ntohs(tcp->dest);
-            
-            // KY THUAT QUAN TRONG: Lay TCP Flags
-            // TCP Flags nam o offset 13 cua TCP Header
-            // Ep kieu ve u8* de lay chinh xac 8 bit
             u8 *flags_ptr = ((u8 *)tcp) + 13; 
             pkt.tcp_flags = *flags_ptr;
         }
